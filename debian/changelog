@@ -1,3 +1,9 @@
+freezegun (0.3.15-1deepin1) unstable; urgency=medium
+
+  * Introduce PR #397 from upstream to fix for python 3.10
+
+ -- Chang Yang <yangchang@deepin.org>  Mon, 09 Oct 2023 12:08:11 +0800
+
 freezegun (0.3.15-1) unstable; urgency=medium
 
   * New upstream release
