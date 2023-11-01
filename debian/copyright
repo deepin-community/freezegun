@@ -3,11 +3,11 @@ Upstream-Name: freezegun
 Source: https://github.com/spulec/freezegun
 
 Files: *
-Copyright: © 2013-2014, Steve Pulec <spulec@gmail.com>
+Copyright: © 2013-2022, Steve Pulec <spulec@gmail.com>
 License: Apache-2.0
 
 Files: debian/*
-Copyright: 2014 Federico Ceratto <federico.ceratto@gmail.com>
+Copyright: 2014-2022 Federico Ceratto <federico.ceratto@gmail.com>
 License: Apache-2.0
 
 License: Apache-2.0
