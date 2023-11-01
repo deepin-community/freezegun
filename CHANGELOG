@@ -1,8 +1,38 @@
 Freezegun Changelog
 ===================
 
-Latest
+1.2.1
+-----
+
+* Added missing typeshed types from distribution
+
+* Pass all arguments on recursive freeze_time calls
+
+
+1.2.0
+-----
+
+* Add support for `time.perf_counter` (and `…_ns`)
+
+* Added typeshed types
+
+* Dropped support for python 3.5
+
+1.1.0
+-----
+
+* Add support for `time.monotonic` (and `…_ns`)
+
+* Allow to configure default ignore list, and also to just extend the default
+
+* Fixed when accessing from thread after stop()
+
+
+1.0.0
 ------
+
+* Dropped Py2 support
+* Added as_kwarg argument in order to have the frozen time object passed with the name provided in as_kwarg argument
 
 0.3.15
 ------

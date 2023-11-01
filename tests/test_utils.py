@@ -1,20 +1,8 @@
-from unittest import SkipTest
-
-try:
-    from unittest import mock
-except (ImportError, AttributeError):
-    import mock
+from importlib import reload
+from unittest import SkipTest, mock
 
 from freezegun import api
 from tests import utils
-
-try:
-    reload
-except NameError:
-    try:
-        from importlib import reload
-    except ImportError:
-        from imp import reload
 
 
 @mock.patch('platform.python_implementation', lambda: 'CPython')

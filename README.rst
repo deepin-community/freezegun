@@ -3,8 +3,8 @@ FreezeGun: Let your Python tests travel through time
 
 .. image:: https://img.shields.io/pypi/v/freezegun.svg
    :target: https://pypi.python.org/pypi/freezegun/
-.. image:: https://secure.travis-ci.org/spulec/freezegun.svg?branch=master
-   :target: https://travis-ci.org/spulec/freezegun
+.. image:: https://github.com/spulec/freezegun/workflows/CI/badge.svg
+   :target: https://github.com/spulec/freezegun/actions
 .. image:: https://coveralls.io/repos/spulec/freezegun/badge.svg?branch=master
    :target: https://coveralls.io/r/spulec/freezegun
 
@@ -13,7 +13,7 @@ FreezeGun is a library that allows your Python tests to travel through time by m
 Usage
 -----
 
-Once the decorator or context manager have been invoked, all calls to datetime.datetime.now(), datetime.datetime.utcnow(), datetime.date.today(), time.time(), time.localtime(), time.gmtime(), and time.strftime() will return the time that has been frozen.
+Once the decorator or context manager have been invoked, all calls to datetime.datetime.now(), datetime.datetime.utcnow(), datetime.date.today(), time.time(), time.localtime(), time.gmtime(), and time.strftime() will return the time that has been frozen. time.monotonic() and time.perf_counter() will also be frozen, but as usual it makes no guarantees about their absolute value, only their changes over time.
 
 Decorator
 ~~~~~~~~~
@@ -24,6 +24,7 @@ Decorator
     import datetime
     import unittest
 
+    # Freeze time for a pytest style test:
 
     @freeze_time("2012-01-14")
     def test():
@@ -42,6 +43,23 @@ Decorator
     class Tester(object):
         def test_the_class(self):
             assert datetime.datetime.now() == datetime.datetime(2012, 1, 14)
+
+    # Or method decorator, might also pass frozen time object as kwarg
+
+    class TestUnitTestMethodDecorator(unittest.TestCase):
+        @freeze_time('2013-04-09')
+        def test_method_decorator_works_on_unittest(self):
+            self.assertEqual(datetime.date(2013, 4, 9), datetime.date.today())
+
+        @freeze_time('2013-04-09', as_kwarg='frozen_time')
+        def test_method_decorator_works_on_unittest(self, frozen_time):
+            self.assertEqual(datetime.date(2013, 4, 9), datetime.date.today())
+            self.assertEqual(datetime.date(2013, 4, 9), frozen_time.time_to_freeze.today())
+
+        @freeze_time('2013-04-09', as_kwarg='hello')
+        def test_method_decorator_works_on_unittest(self, **kwargs):
+            self.assertEqual(datetime.date(2013, 4, 9), datetime.date.today())
+            self.assertEqual(datetime.date(2013, 4, 9), kwargs.get('hello').time_to_freeze.today())
 
 Context manager
 ~~~~~~~~~~~~~~~
@@ -156,7 +174,7 @@ FreezeGun allows for the time to be manually forwarded as well.
 
 .. code-block:: python
 
-    def test_manual_increment():
+    def test_manual_tick():
         initial_datetime = datetime.datetime(year=1, month=7, day=12,
                                             hour=15, minute=6, second=3)
         with freeze_time(initial_datetime) as frozen_datetime:
@@ -169,6 +187,18 @@ FreezeGun allows for the time to be manually forwarded as well.
             frozen_datetime.tick(delta=datetime.timedelta(seconds=10))
             initial_datetime += datetime.timedelta(seconds=10)
             assert frozen_datetime() == initial_datetime
+
+.. code-block:: python
+
+    def test_monotonic_manual_tick():
+        initial_datetime = datetime.datetime(year=1, month=7, day=12,
+                                            hour=15, minute=6, second=3)
+        with freeze_time(initial_datetime) as frozen_datetime:
+            monotonic_t0 = time.monotonic()
+            frozen_datetime.tick(1.0)
+            monotonic_t1 = time.monotonic()
+            assert monotonic_t1 == monotonic_t0 + 1.0
+
 
 Moving time to specify datetime
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -234,3 +264,55 @@ On Debian systems:
 .. code-block:: bash
 
     $ sudo apt-get install python-freezegun
+
+
+Ignore packages
+---------------
+
+Sometimes it's desired to ignore FreezeGun behaviour for particular packages (i.e. libraries).
+It's possible to ignore them for a single invocation:
+
+
+.. code-block:: python
+
+    from freezegun import freeze_time
+
+    with freeze_time('2020-10-06', ignore=['threading']):
+        # ...
+
+
+By default FreezeGun ignores following packages:
+
+.. code-block:: python
+
+    [
+        'nose.plugins',
+        'six.moves',
+        'django.utils.six.moves',
+        'google.gax',
+        'threading',
+        'Queue',
+        'selenium',
+        '_pytest.terminal.',
+        '_pytest.runner.',
+        'gi',
+    ]
+
+
+It's possible to set your own default ignore list:
+
+.. code-block:: python
+
+    import freezegun
+
+    freezegun.configure(default_ignore_list=['threading', 'tensorflow'])
+
+
+Please note this will override default ignore list. If you want to extend existing defaults
+please use:
+
+.. code-block:: python
+
+    import freezegun
+
+    freezegun.configure(extend_ignore_list=['tensorflow'])

@@ -15,15 +15,16 @@ from freezegun.api import FakeDatetime, FakeDate
 
 try:
     import maya
-
 except ImportError:
     maya = None
 
 # time.clock was removed in Python 3.8
 HAS_CLOCK = hasattr(time, 'clock')
 HAS_TIME_NS = hasattr(time, 'time_ns')
+HAS_MONOTONIC_NS = hasattr(time, 'monotonic_ns')
+HAS_PERF_COUNTER_NS = hasattr(time, 'perf_counter_ns')
 
-class temp_locale(object):
+class temp_locale:
     """Temporarily change the locale."""
 
     def __init__(self, *targets):
@@ -58,12 +59,16 @@ def test_simple_api():
 
     freezer.start()
     assert time.time() == expected_timestamp
+    assert time.monotonic() >= 0.0
+    assert time.perf_counter() >= 0.0
     assert datetime.datetime.now() == datetime.datetime(2012, 1, 14)
     assert datetime.datetime.utcnow() == datetime.datetime(2012, 1, 14)
     assert datetime.date.today() == datetime.date(2012, 1, 14)
     assert datetime.datetime.now().today() == datetime.datetime(2012, 1, 14)
     freezer.stop()
     assert time.time() != expected_timestamp
+    assert time.monotonic() >= 0.0
+    assert time.perf_counter() >= 0.0
     assert datetime.datetime.now() != datetime.datetime(2012, 1, 14)
     assert datetime.datetime.utcnow() != datetime.datetime(2012, 1, 14)
     freezer = freeze_time("2012-01-10 13:52:01")
@@ -114,6 +119,8 @@ def test_zero_tz_offset_with_time():
     assert datetime.datetime.now() == datetime.datetime(1970, 1, 1)
     assert datetime.datetime.utcnow() == datetime.datetime(1970, 1, 1)
     assert time.time() == 0.0
+    assert time.monotonic() >= 0.0
+    assert time.perf_counter() >= 0.0
     freezer.stop()
 
 
@@ -126,6 +133,8 @@ def test_tz_offset_with_time():
     assert datetime.datetime.now() == datetime.datetime(1969, 12, 31, 20)
     assert datetime.datetime.utcnow() == datetime.datetime(1970, 1, 1)
     assert time.time() == 0.0
+    assert time.monotonic() >= 0
+    assert time.perf_counter() >= 0
     freezer.stop()
 
 
@@ -198,6 +207,34 @@ def test_bad_time_argument():
         assert False, "Bad values should raise a ValueError"
 
 
+@pytest.mark.parametrize("func_name, has_func, tick_size", (
+    ("monotonic", True, 1.0),
+    ("monotonic_ns", HAS_MONOTONIC_NS, int(1e9)),
+    ("perf_counter", True, 1.0),
+    ("perf_counter_ns", HAS_PERF_COUNTER_NS, int(1e9)),)
+)
+def test_time_monotonic(func_name, has_func, tick_size):
+    initial_datetime = datetime.datetime(year=1, month=7, day=12,
+                                        hour=15, minute=6, second=3)
+    if not has_func:
+        pytest.skip("%s does not exist in current version" % func_name)
+
+    with freeze_time(initial_datetime) as frozen_datetime:
+        func = getattr(time, func_name)
+        t0 = func()
+
+        frozen_datetime.tick()
+
+        t1 = func()
+
+        assert t1 == t0 + tick_size
+
+        frozen_datetime.tick(10)
+
+        t11 = func()
+        assert t11 == t1 + 10 * tick_size
+
+
 def test_time_gmtime():
     with freeze_time('2012-01-14 03:21:34'):
         time_struct = time.gmtime()
@@ -225,7 +262,7 @@ def test_time_clock():
             assert time.clock() == 2
 
 
-class modify_timezone(object):
+class modify_timezone:
 
     def __init__(self, new_timezone):
         self.new_timezone = new_timezone
@@ -261,9 +298,10 @@ def test_strftime():
 
 
 def test_real_strftime_fall_through():
-    with freeze_time(ignore=['_pytest']):
-        time.strftime('%Y')
-        time.strftime('%Y', (2001, 1, 1, 1, 1, 1, 1, 1, 1)) == '2001'
+    this_real_year = datetime.datetime.now().year
+    with freeze_time():
+        assert time.strftime('%Y') == str(this_real_year)
+        assert time.strftime('%Y', (2001, 1, 1, 1, 1, 1, 1, 1, 1)) == '2001'
 
 
 def test_date_object():
@@ -374,14 +412,14 @@ def test_decorator_wrapped_attribute():
     assert wrapped.__wrapped__ is to_decorate
 
 
-class Callable(object):
+class Callable:
 
     def __call__(self, *args, **kws):
         return (args, kws)
 
 
 @freeze_time("2012-01-14")
-class Tester(object):
+class Tester:
 
     def test_the_class(self):
         assert datetime.datetime.now() == datetime.datetime(2012, 1, 14)
@@ -392,7 +430,7 @@ class Tester(object):
     def test_class_name_preserved_by_decorator(self):
         assert self.__class__.__name__ == "Tester"
 
-    class NotATestClass(object):
+    class NotATestClass:
 
         def perform_operation(self):
             return datetime.date.today()
@@ -404,14 +442,7 @@ class Tester(object):
 
     a_mock = Callable()
 
-    def test_class_decorator_skips_callable_object_py2(self):
-        if sys.version_info[0] != 2:
-            raise SkipTest("test target is Python2")
-        assert self.a_mock.__class__ == Callable
-
     def test_class_decorator_wraps_callable_object_py3(self):
-        if sys.version_info[0] == 2:
-            raise SkipTest("test target is Python3+")
         assert self.a_mock.__wrapped__.__class__ == Callable
 
     @staticmethod
@@ -484,6 +515,22 @@ def test_isinstance_without_active():
     assert isinstance(today, datetime.date)
 
 
+class TestUnitTestMethodDecorator(unittest.TestCase):
+    @freeze_time('2013-04-09')
+    def test_method_decorator_works_on_unittest(self):
+        self.assertEqual(datetime.date(2013, 4, 9), datetime.date.today())
+
+    @freeze_time('2013-04-09', as_kwarg='frozen_time')
+    def test_method_decorator_works_on_unittest_kwarg_frozen_time(self, frozen_time):
+        self.assertEqual(datetime.date(2013, 4, 9), datetime.date.today())
+        self.assertEqual(datetime.date(2013, 4, 9), frozen_time.time_to_freeze.today())
+
+    @freeze_time('2013-04-09', as_kwarg='hello')
+    def test_method_decorator_works_on_unittest_kwarg_hello(self, **kwargs):
+        self.assertEqual(datetime.date(2013, 4, 9), datetime.date.today())
+        self.assertEqual(datetime.date(2013, 4, 9), kwargs.get('hello').time_to_freeze.today())
+
+
 @freeze_time('2013-04-09')
 class TestUnitTestClassDecorator(unittest.TestCase):
 
@@ -518,12 +565,12 @@ class TestUnitTestClassDecoratorSubclass(TestUnitTestClassDecorator):
     @classmethod
     def setUpClass(cls):
         # the super() call can fail if the class decoration was done wrong
-        super(TestUnitTestClassDecoratorSubclass, cls).setUpClass()
+        super().setUpClass()
 
     @classmethod
     def tearDownClass(cls):
         # the super() call can fail if the class decoration was done wrong
-        super(TestUnitTestClassDecoratorSubclass, cls).tearDownClass()
+        super().tearDownClass()
 
     def test_class_name_preserved_by_decorator(self):
         self.assertEqual(self.__class__.__name__,
@@ -633,6 +680,24 @@ def test_time_with_nested():
         assert time() == second
 
 
+@pytest.mark.parametrize("func_name",
+    ("monotonic", "perf_counter")
+)
+def test_monotonic_with_nested(func_name):
+    __import__("time", fromlist=[func_name])
+    invoke_time_func = lambda: getattr(time, func_name)()
+
+    with freeze_time('2015-01-01') as frozen_datetime_1:
+        initial_t1 = invoke_time_func()
+        with freeze_time('2015-12-25') as frozen_datetime_2:
+            initial_t2 = invoke_time_func()
+            frozen_datetime_2.tick()
+            assert invoke_time_func() == initial_t2 + 1
+        assert invoke_time_func() == initial_t1
+        frozen_datetime_1.tick()
+        assert invoke_time_func() == initial_t1 + 1
+
+
 def test_should_use_real_time():
     frozen = datetime.datetime(2015, 3, 5)
     expected_frozen = 1425513600.0
@@ -659,7 +724,7 @@ def test_should_use_real_time():
         assert calendar.timegm(time.gmtime()) == expected_frozen
         assert calendar.timegm(time_tuple) == timestamp_to_convert
 
-    with freeze_time(frozen, ignore=['_pytest', 'nose']):
+    with freeze_time(frozen, ignore=['_pytest']):
         assert time.time() != expected_frozen
         # assert time.localtime() != expected_frozen_local
         assert time.gmtime() != expected_frozen_gmt

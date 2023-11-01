@@ -1,0 +1,15 @@
+Author: Karthikeyan Singaravelan
+Description: Fix Python 3.10 callable staticmethods
+Forwarded: not-needed
+
+--- a/freezegun/api.py
++++ b/freezegun/api.py
+@@ -599,7 +599,7 @@
+                         continue
+                     seen.add(attr)
+ 
+-                    if not callable(attr_value) or inspect.isclass(attr_value):
++                    if not callable(attr_value) or inspect.isclass(attr_value) or isinstance(attr_value, staticmethod):
+                         continue
+ 
+                     try:

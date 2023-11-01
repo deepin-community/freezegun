@@ -1,2 +1,0 @@
-six
-python-dateutil!=2.0,>=1.0
